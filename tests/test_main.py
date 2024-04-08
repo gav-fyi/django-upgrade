@@ -29,6 +29,15 @@ def test_main_no_files(capsys):
     assert out == ""
 
 
+def test_main_no_files_with_list_fixers():
+    """
+    Main should pass without any files as argument, if `--list-fixers` is passed in
+    """
+    result = main(["--list-fixers"])
+
+    assert result == 0
+
+
 def test_main_help():
     with pytest.raises(SystemExit) as excinfo:
         main(["--help"])
@@ -136,3 +145,138 @@ def test_fixup_dedent_tokens():
 
     assert tokens[14].name == DEDENT
     assert tokens[15].name == UNIMPORTANT_WS
+
+
+def test_main_list_fixers(tmp_path, capsys):
+    """
+    Main with `--list-fixers` should not attempt to transform files
+    """
+    path = tmp_path / "example.py"
+    path.write_text("from django.core.paginator import QuerySetPaginator\n")
+
+    result = main(["--list-fixers", str(path)])
+
+    assert result == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert "Rewriting" not in err
+    assert "Rewriting" not in out
+
+
+def test_main_list_fixers_lists_fixers(tmp_path, capsys):
+    """
+    Main with `--list-fixers` should not attempt to transform files
+    """
+    result = main(["--list-fixers"])
+
+    assert result == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert "admin_allow_tags" in out
+    assert "admin_decorators" in out
+    assert "admin_lookup_needs_distinct" in out
+    assert "admin_register" in out
+    assert "assert_form_error" in out
+    assert "assert_set_methods" in out
+    assert "compatibility_imports" in out
+    assert "crypto_get_random_string" in out
+    assert "default_app_config" in out
+    assert "django_urls" in out
+    assert "email_validator" in out
+    assert "forms_model_multiple_choice_field" in out
+    assert "management_commands" in out
+    assert "null_boolean_field" in out
+    assert "on_delete" in out
+    assert "password_reset_timeout_days" in out
+    assert "postgres_float_range_field" in out
+    assert "queryset_paginator" in out
+    assert "request_headers" in out
+    assert "request_user_attributes" in out
+    assert "settings_database_postgresql" in out
+    assert "settings_storages" in out
+    assert "signal_providing_args" in out
+    assert "test_http_headers" in out
+    assert "testcase_databases" in out
+    assert "timezone_fixedoffset" in out
+    assert "use_l10n" in out
+    assert "utils_encoding" in out
+    assert "utils_http" in out
+    assert "utils_text" in out
+    assert "utils_timezone" in out
+    assert "utils_translation" in out
+    assert "versioned_branches" in out
+
+
+def test_main_only_limits_fixers_invalid_fixer(tmp_path, capsys):
+    """
+    Main with --only invalid_fixer doesn't fix any files
+    """
+    path = tmp_path / "example.py"
+    path.write_text("from django.core.paginator import QuerySetPaginator\n")
+
+    result = main(["--only", "invalid_fixer", str(path)])
+
+    assert result == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert "Rewriting" not in err
+    assert "Rewriting" not in out
+
+
+def test_main_skip_excludes_fixers_invalid_fixer(tmp_path, capsys):
+    """
+    Main with --skip invalid_fixer fixes code as expected
+    """
+    path = tmp_path / "example.py"
+    path.write_text("from django.core.paginator import QuerySetPaginator\n")
+
+    result = main(["--skip", "invalid_fixer", str(path)])
+
+    assert result == 1
+    _, err = capsys.readouterr()
+    assert err == f"Rewriting {path}\n"
+    assert path.read_text() == "from django.core.paginator import Paginator\n"
+
+
+def test_main_only_limits_fixers_valid_fixer(tmp_path, capsys):
+    """
+    Main with --only queryset_paginator limits fixes to that fixer
+    """
+    # Correctly fixes paginator code
+    path = tmp_path / "example.py"
+    path.write_text("from django.core.paginator import QuerySetPaginator\n")
+
+    result = main(["--only", "queryset_paginator", str(path)])
+
+    assert result == 1
+    _, err = capsys.readouterr()
+    assert err == f"Rewriting {path}\n"
+    assert path.read_text() == "from django.core.paginator import Paginator\n"
+
+    # Doesn't touch assert_form_error code
+    path = tmp_path / "example2.py"
+    path.write_text('self.assertFormError(response, "form", "user", "woops")\n')
+
+    result = main(["--only", "queryset_paginator", str(path)])
+
+    assert result == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert "Rewriting" not in err
+    assert "Rewriting" not in out
+
+
+def test_main_skip_excludes_fixers_valid_fixer(tmp_path, capsys):
+    """
+    Main with --skip queryset_paginator ignores bad code
+    """
+    path = tmp_path / "example.py"
+    path.write_text("from django.core.paginator import QuerySetPaginator\n")
+
+    result = main(["--skip", "queryset_paginator", str(path)])
+
+    assert result == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert "Rewriting" not in err
+    assert "Rewriting" not in out
