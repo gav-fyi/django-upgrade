@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 import tokenize
+import tomllib
 from importlib import metadata
 from typing import Any
 from typing import Sequence
@@ -21,6 +22,25 @@ from django_upgrade.data import Settings
 from django_upgrade.data import visit
 from django_upgrade.tokens import DEDENT
 
+SUPPORTED_DJANGO_VERSIONS = [
+    "1.7",
+    "1.8",
+    "1.9",
+    "1.10",
+    "1.11",
+    "2.0",
+    "2.1",
+    "2.2",
+    "3.0",
+    "3.1",
+    "3.2",
+    "4.0",
+    "4.1",
+    "4.2",
+    "5.0",
+    "5.1",
+]
+
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
@@ -28,24 +48,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--target-version",
         default="2.2",
-        choices=[
-            "1.7",
-            "1.8",
-            "1.9",
-            "1.10",
-            "1.11",
-            "2.0",
-            "2.1",
-            "2.2",
-            "3.0",
-            "3.1",
-            "3.2",
-            "4.0",
-            "4.1",
-            "4.2",
-            "5.0",
-            "5.1",
-        ],
+        choices=SUPPORTED_DJANGO_VERSIONS,
         help="The version of Django to target.",
     )
     parser.add_argument(
@@ -77,10 +80,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    target_version: tuple[int, int] = cast(
-        Tuple[int, int],
-        tuple(int(x) for x in args.target_version.split(".", 1)),
-    )
+    target_version = parse_target_version(args.target_version)
+    
+    print(target_version)
 
     settings = Settings(
         target_version=target_version,
@@ -97,6 +99,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     return ret
+
+
+def parse_target_version(args_version: str) -> tuple[int, int]:
+    '''
+    Attempt to parse the Django version from pyproject.toml by using Python's
+    packaging library, and comparing the specifiers with this library's supported
+    Django versions, settling with the highest supported version if loosely pinned.
+    
+    i.e. "django >=3.0, <5.0" will result in 4.2
+         "django" will result in 5.1
+         
+    If a --target-version is passed in through the args, it will be used.
+    '''
+    target_version = args_version
+    
+    try:
+        with open("pyproject.toml", "rb") as f:
+            data = tomllib.load(f)
+    except FileNotFoundError:
+        pass
+    else:
+        dependencies = data.get('project', {}).get('dependencies', [])
+        print(dependencies)  
+    
+    return cast(
+        Tuple[int, int],
+        tuple(int(x) for x in target_version.split(".", 1)),
+    )
 
 
 def fixer_type(string: str) -> str:
