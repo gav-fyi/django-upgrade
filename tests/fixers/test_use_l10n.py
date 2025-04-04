@@ -101,3 +101,42 @@ def test_success_with_other_lines():
         """,
         filename="myapp/settings.py",
     )
+
+
+def test_success_with_class_based_settings():
+    check_transformed(
+        """\
+        class BaseSettings:
+            SETTINGS_1 = True
+            USE_L10N = True
+            SETTINGS_2 = True
+        """,
+        """\
+        class BaseSettings:
+            SETTINGS_1 = True
+            SETTINGS_2 = True
+        """,
+        filename="myapp/settings/base.py",
+    )
+
+
+def test_success_with_class_based_settings_inherited():
+    check_transformed(
+        """\
+        class BaseSettings:
+            SETTINGS_1 = True
+            USE_L10N = True
+
+        class ProdSettings(BaseSettings):
+            SETTINGS_2 = True
+            USE_L10N = True
+        """,
+        """\
+        class BaseSettings:
+            SETTINGS_1 = True
+
+        class ProdSettings(BaseSettings):
+            SETTINGS_2 = True
+        """,
+        filename="myapp/settings/base.py",
+    )
